@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Christmas Star – Clean Version</title>
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at bottom, #000000, #050505);
+    opacity: 0;
+    transition: opacity 1.5s ease;
+    z-index: -1;
+}
+body.dark-mood::after { opacity: 1; }
+
+canvas { position: absolute; inset: 0; }
+
+.hint {
+    position: fixed;
+    color: red;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 10;
+    transition: opacity 0.5s ease;
+    text-align: center;
+}
+
+#icon-label {
+    top: 55px;
+    right: 10px;
+    width: 70px;
+}
+
+#star-label {
+    transform: translateX(-50%);
+    line-height: 1.4;
+}
+
+#icon {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    font-size: 30px;
+    cursor: pointer;
+    z-index: 20;
+}
+body.dark-mood #icon { color: #fff; }
+
+#message {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10vw;
+    font-weight: bold;
+    color: #ffeb3b;
+    text-align: center;
+    text-shadow: 0 0 15px gold, 0 0 30px white;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+
+<div id="icon-label" class="hint">CLICK TREE</div>
+<div id="star-label" class="hint">
+    CLICK THE STAR<br>
+    CONTINUOUSLY
+</div>
+
+<div id="icon">🎄</div>
+<div id="message">HAPPY<br>CHRISTMAS</div>
+
+<audio id="bgMusic" loop preload="auto">
+    <source src="christmas-443109.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const msg = document.getElementById("message");
+const starLabel = document.getElementById("star-label");
+const treeLabel = document.getElementById("icon-label");
+const icon = document.getElementById("icon");
+const music = document.getElementById("bgMusic");
+
+const ANIMATION_DURATION = 6000;
+
+let musicStarted = false;
+let t = 0;
+let clickCount = 0;
+let blinkMode = false;
+let starScale = 1;
+let starOpacity = 1;
+let resetTimer;
+
+const colors = ["#FFD700","#FF4D4D","#4DD2FF","#7CFF7C","#C77DFF","#FF9F1C"];
+let starColor = colors[0];
+
+const icons = ["🎄","🔔","⭐"];
+let iconIndex = 0;
+
+const snowflakes = [];
+const fallingStars = [];
+
+function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    updateStarLabel();
+}
+resize();
+addEventListener("resize", resize);
+
+function updateStarLabel() {
+    const offset = Math.min(innerWidth, innerHeight) * 0.22;
+    starLabel.style.left = innerWidth / 2 + "px";
+    starLabel.style.top = innerHeight / 2 + offset + "px";
+}
+
+icon.onclick = () => {
+    if (icons[iconIndex] === "🎄") treeLabel.style.opacity = 0;
+    iconIndex = (iconIndex + 1) % icons.length;
+    icon.textContent = icons[iconIndex];
+};
+
+function drawStar(cx, cy, r, spikes, color) {
+    let rot = Math.PI / 2 * 3;
+    let step = Math.PI / spikes;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    for (let i = 0; i < spikes; i++) {
+        ctx.lineTo(cx + Math.cos(rot) * r, cy + Math.sin(rot) * r);
+        rot += step;
+        ctx.lineTo(cx + Math.cos(rot) * r / 2, cy + Math.sin(rot) * r / 2);
+        rot += step;
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function spawnSnow() {
+    snowflakes.push({
+        x: Math.random() * canvas.width,
+        y: -10,
+        r: Math.random() * 2 + 0.8,
+        s: Math.random() * 1.5 + 1
+    });
+}
+
+function spawnFallingStar() {
+    fallingStars.push({
+        x: Math.random() * canvas.width,
+        y: -20,
+        s: Math.random() * 1.2 + 0.6,
+        v: Math.random() * 3 + 3
+    });
+}
+
+function resetExperience() {
+    blinkMode = false;
+    clickCount = 0;
+    starScale = 1;
+    starOpacity = 1;
+    starColor = colors[0];
+    snowflakes.length = 0;
+    fallingStars.length = 0;
+    msg.style.opacity = 0;
+    starLabel.style.opacity = 1;
+    treeLabel.style.opacity = 1;
+    document.body.classList.remove("dark-mood");
+
+    if (musicStarted) music.currentTime = 0;
+}
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const size = Math.min(canvas.width, canvas.height) * 0.25;
+    const pulse = size + size * 0.05 * Math.sin(t);
+
+    if (starOpacity > 0) {
+        ctx.save();
+        ctx.globalAlpha = starOpacity;
+        ctx.shadowBlur = blinkMode ? 100 : 30;
+        ctx.shadowColor = starColor;
+        drawStar(canvas.width / 2, canvas.height / 2, pulse * starScale, 5, starColor);
+        ctx.restore();
+    }
+
+    if (blinkMode) {
+        starScale += 0.25;
+        starOpacity -= 0.03;
+        msg.style.opacity = 1;
+
+        if (Math.random() < 0.45) spawnSnow();
+        if (Math.random() < 0.15) spawnFallingStar();
+
+        snowflakes.forEach(s => {
+            ctx.fillStyle = "#fff";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y += s.s, s.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        fallingStars.forEach(fs => {
+            drawStar(fs.x, fs.y += fs.v, fs.s * 3, 5, "#fff");
+        });
+    }
+
+    t += 0.03;
+    requestAnimationFrame(animate);
+}
+animate();
+
+canvas.addEventListener("click", e => {
+
+    if (!musicStarted) {
+        music.play();
+        musicStarted = true;
+    }
+
+    const dx = e.clientX - canvas.width / 2;
+    const dy = e.clientY - canvas.height / 2;
+
+    if (Math.hypot(dx, dy) < canvas.width * 0.4 && !blinkMode) {
+        clickCount++;
+
+        if (clickCount < colors.length) {
+            starColor = colors[clickCount];
+        }
+
+        if (clickCount === colors.length) {
+            blinkMode = true;
+            starLabel.style.opacity = 0;
+            document.body.classList.add("dark-mood");
+
+            clearTimeout(resetTimer);
+            resetTimer = setTimeout(resetExperience, ANIMATION_DURATION);
+        }
+    }
+});
+</script>
+</body>
+</html>
